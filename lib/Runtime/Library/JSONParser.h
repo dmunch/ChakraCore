@@ -4,54 +4,19 @@
 //-------------------------------------------------------------------------------------------------------
 #pragma once
 #include "JSONScanner.h"
+#include "CachingPropertySetter.h"
 
 namespace JSON
 {
     class JSONDeferredParserRootNode;
 
-    struct JsonTypeCache
-    {
-        const Js::PropertyRecord* propertyRecord;
-        Js::DynamicType* typeWithoutProperty;
-        Js::DynamicType* typeWithProperty;
-        JsonTypeCache* next;
-        Js::PropertyIndex propertyIndex;
-
-        JsonTypeCache(const Js::PropertyRecord* propertyRecord, Js::DynamicType* typeWithoutProperty, Js::DynamicType* typeWithProperty, Js::PropertyIndex propertyIndex) :
-            propertyRecord(propertyRecord),
-            typeWithoutProperty(typeWithoutProperty),
-            typeWithProperty(typeWithProperty),
-            propertyIndex(propertyIndex),
-            next(nullptr) {}
-
-        static JsonTypeCache* New(ArenaAllocator* allocator,
-            const Js::PropertyRecord* propertyRecord,
-            Js::DynamicType* typeWithoutProperty,
-            Js::DynamicType* typeWithProperty,
-            Js::PropertyIndex propertyIndex)
-        {
-            return Anew(allocator, JsonTypeCache, propertyRecord, typeWithoutProperty, typeWithProperty, propertyIndex);
-        }
-
-        void Update(const Js::PropertyRecord* propertyRecord,
-            Js::DynamicType* typeWithoutProperty,
-            Js::DynamicType* typeWithProperty,
-            Js::PropertyIndex propertyIndex)
-        {
-            this->propertyRecord = propertyRecord;
-            this->typeWithoutProperty = typeWithoutProperty;
-            this->typeWithProperty = typeWithProperty;
-            this->propertyIndex = propertyIndex;
-        }
-    };
-
-
     class JSONParser
     {
     public:
         JSONParser(Js::ScriptContext* sc, Js::RecyclableObject* rv) : scriptContext(sc),
-            reviver(rv),  arenaAllocatorObject(nullptr), arenaAllocator(nullptr), typeCacheList(nullptr)
+            reviver(rv), propertySetter(nullptr)
         {
+            this->propertySetter = new Js::CachingPropertySetter(scriptContext);
         };
 
         Js::Var Parse(LPCWSTR str, uint length);
@@ -74,19 +39,14 @@ namespace JSON
             Scan();
         }
 
-        bool IsCaching()
-        {
-            return arenaAllocator != nullptr;
-        }
-
         Token m_token;
         JSONScanner m_scanner;
         Js::ScriptContext* scriptContext;
         Js::RecyclableObject* reviver;
-        Js::TempGuestArenaAllocatorObject* arenaAllocatorObject;
-        ArenaAllocator* arenaAllocator;
-        typedef JsUtil::BaseDictionary<const Js::PropertyRecord *, JsonTypeCache*, ArenaAllocator, PowerOf2SizePolicy, Js::PropertyRecordStringHashComparer>  JsonTypeCacheList;
-        JsonTypeCacheList* typeCacheList;
+
+        bool isCaching;
+        Js::CachingPropertySetter* propertySetter;
+
         static const uint MIN_CACHE_LENGTH = 50; // Use Json type cache only if the JSON string is larger than this constant.
     };
 } // namespace JSON

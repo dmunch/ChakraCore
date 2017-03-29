@@ -18,6 +18,7 @@ namespace Js
     class JavascriptString;
     struct FrameDisplay;
     class TypedArrayBase;
+    class CachingPropertySetter;
 
 #if _M_IX86
 #define unaligned

@@ -118,7 +118,8 @@
     <ClCompile Include="$(MSBuildThisFileDirectory)WebAssemblyModule.cpp" />
     <ClCompile Include="$(MSBuildThisFileDirectory)WebAssemblyTable.cpp" />
     <ClCompile Include="$(MSBuildThisFileDirectory)WebAssemblyEnvironment.cpp" />
-    <ClCompile Include="WabtInterface.cpp" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)WabtInterface.cpp" />
+    <ClCompile Include="CachingPropertySetter.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\InternalPropertyList.h" />
@@ -254,6 +255,7 @@
     <ClInclude Include="WebAssemblyTable.h" />
     <ClInclude Include="WebAssemblyEnvironment.h" />
     <ClInclude Include="WabtInterface.h" />
+    <ClInclude Include="CachingPropertySetter.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="ConcatString.inl" />

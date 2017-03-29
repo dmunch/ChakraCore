@@ -14,29 +14,23 @@ namespace JSON
     void JSONParser::Finalizer()
     {
         m_scanner.Finalizer();
-        if(arenaAllocatorObject)
-        {
-            this->scriptContext->ReleaseTemporaryGuestAllocator(arenaAllocatorObject);
-        }
+		if (this->propertySetter)
+		{
+			delete this->propertySetter;
+		}
     }
 
     Js::Var JSONParser::Parse(LPCWSTR str, uint length)
     {
-        if (length > MIN_CACHE_LENGTH)
-        {
-            if (!this->arenaAllocatorObject)
-            {
-                this->arenaAllocatorObject = scriptContext->GetTemporaryGuestAllocator(_u("JSONParse"));
-                this->arenaAllocator = arenaAllocatorObject->GetAllocator();
-            }
-        }
-        m_scanner.Init(str, length, &m_token, scriptContext, str, this->arenaAllocator);
+        isCaching = length > MIN_CACHE_LENGTH;
+        m_scanner.Init(str, length, &m_token, scriptContext, str, this->propertySetter->GetArenaAllocator());
         Scan();
         Js::Var ret = ParseObject();
         if (m_token.tk != tkEOF)
         {
             m_scanner.ThrowSyntaxError(JSERR_JsonSyntax);
         }
+
         return ret;
     }
 
@@ -276,14 +270,6 @@ namespace JSON
             {
 
                 // Parse an object, "{"name1" : ObjMember1, "name2" : ObjMember2, ...} "
-                if(IsCaching())
-                {
-                    if(!typeCacheList)
-                    {
-                        typeCacheList = Anew(this->arenaAllocator, JsonTypeCacheList, this->arenaAllocator, 8);
-                    }
-                }
-
                 // first, create the object
                 Js::DynamicObject* object = scriptContext->GetLibrary()->CreateObject();
                 JS_ETW(EventWriteJSCRIPT_RECYCLER_ALLOCATE_OBJECT(object));
@@ -303,8 +289,7 @@ namespace JSON
                     Scan();
                     return object;
                 }
-                JsonTypeCache* previousCache = nullptr;
-                JsonTypeCache* currentCache = nullptr;
+
                 //parse the list of members
                 while(true)
                 {
@@ -321,84 +306,14 @@ namespace JSON
                     WCHAR* currentStr = m_scanner.GetCurrentString();
                     uint currentStrLength = m_scanner.GetCurrentStringLen();
 
-                    DynamicType* typeWithoutProperty = object->GetDynamicType();
-                    if(IsCaching())
-                    {
-                        if(!previousCache)
-                        {
-                            // This is the first property in the list - see if we have an existing cache for it.
-                            currentCache = typeCacheList->LookupWithKey(Js::HashedCharacterBuffer<WCHAR>(currentStr, currentStrLength), nullptr);
-                        }
-                        if(currentCache && currentCache->typeWithoutProperty == typeWithoutProperty &&
-                            currentCache->propertyRecord->Equals(JsUtil::CharacterBuffer<WCHAR>(currentStr, currentStrLength)))
-                        {
-                            //check and consume ":"
-                            if(Scan() != tkColon )
-                            {
-                                m_scanner.ThrowSyntaxError(JSERR_JsonNoColon);
-                            }
-                            Scan();
-
-                            // Cache all values from currentCache as there is a chance that ParseObject might change the cache
-                            DynamicType* typeWithProperty = currentCache->typeWithProperty;
-                            PropertyId propertyId = currentCache->propertyRecord->GetPropertyId();
-                            PropertyIndex propertyIndex = currentCache->propertyIndex;
-                            previousCache = currentCache;
-                            currentCache = currentCache->next;
-
-                            // fast path for type transition and property set
-                            object->EnsureSlots(typeWithoutProperty->GetTypeHandler()->GetSlotCapacity(),
-                                typeWithProperty->GetTypeHandler()->GetSlotCapacity(), scriptContext, typeWithProperty->GetTypeHandler());
-                            object->ReplaceType(typeWithProperty);
-                            Js::Var value = ParseObject();
-                            object->SetSlot(SetSlotArguments(propertyId, propertyIndex, value));
-
-                            // if the next token is not a comma consider the list of members done.
-                            if (tkComma != m_token.tk)
-                                break;
-                            Scan();
-                            continue;
-                        }
-                    }
-
-                    // slow path
-                    Js::PropertyRecord const * propertyRecord;
-                    scriptContext->GetOrAddPropertyRecord(currentStr, currentStrLength, &propertyRecord);
-
                     //check and consume ":"
-                    if(Scan() != tkColon )
+                    if (Scan() != tkColon)
                     {
                         m_scanner.ThrowSyntaxError(JSERR_JsonNoColon);
                     }
                     Scan();
-                    Js::Var value = ParseObject();
-                    PropertyValueInfo info;
-                    object->SetProperty(propertyRecord->GetPropertyId(), value, PropertyOperation_None, &info);
-
-                    DynamicType* typeWithProperty = object->GetDynamicType();
-                    if(IsCaching() && !propertyRecord->IsNumeric() && !info.IsNoCache() && typeWithProperty->GetIsShared() && typeWithProperty->GetTypeHandler()->IsPathTypeHandler())
-                    {
-                        PropertyIndex propertyIndex = info.GetPropertyIndex();
-
-                        if(!previousCache)
-                        {
-                            // This is the first property in the set add it to the dictionary.
-                            currentCache = JsonTypeCache::New(this->arenaAllocator, propertyRecord, typeWithoutProperty, typeWithProperty, propertyIndex);
-                            typeCacheList->AddNew(propertyRecord, currentCache);
-                        }
-                        else if(!currentCache)
-                        {
-                            currentCache = JsonTypeCache::New(this->arenaAllocator, propertyRecord, typeWithoutProperty, typeWithProperty, propertyIndex);
-                            previousCache->next = currentCache;
-                        }
-                        else
-                        {
-                            // cache miss!!
-                            currentCache->Update(propertyRecord, typeWithoutProperty, typeWithProperty, propertyIndex);
-                        }
-                        previousCache = currentCache;
-                        currentCache = currentCache->next;
-                    }
+					Js::Var value = ParseObject();
+					propertySetter->SetProperty(object, value, currentStr, currentStrLength, isCaching);
 
                     // if the next token is not a comma consider the list of members done.
                     if (tkComma != m_token.tk)
