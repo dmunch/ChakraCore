@@ -17,6 +17,8 @@
 #include "Base/ThreadContextTlsEntry.h"
 #include "Codex/Utf8Helper.h"
 
+#include "Library/CachingPropertySetter.h"
+
 // Parser Includes
 #include "cmperr.h"     // For ERRnoMemory
 #include "screrror.h"   // For CompileScriptException
@@ -1463,6 +1465,67 @@ CHAKRA_API JsSetProperty(_In_ JsValueRef object, _In_ JsPropertyIdRef propertyId
 
         return JsNoError;
     });
+}
+
+CHAKRA_API JsSetPropertyWithCache(_In_ JsValueRef object, _In_ JsValueRef cachingPropertySetter, const char *name, _In_ size_t length, _In_ JsValueRef value)
+{
+	return ContextAPIWrapper<true>([&](Js::ScriptContext *scriptContext, TTDRecorder& _actionEntryPopper) -> JsErrorCode {
+		PERFORM_JSRT_TTD_RECORD_ACTION_NOT_IMPLEMENTED(scriptContext);
+		
+		PARAM_NOT_NULL(name);
+		VALIDATE_INCOMING_OBJECT(object, scriptContext);
+		VALIDATE_INCOMING_OBJECT(cachingPropertySetter, scriptContext);
+		VALIDATE_INCOMING_REFERENCE(value, scriptContext);
+		
+		Js::CachingPropertySetter *propertySetter = nullptr;
+		
+		if (JsrtExternalObject::Is(cachingPropertySetter))
+		{
+			propertySetter = (Js::CachingPropertySetter *) JsrtExternalObject::FromVar(cachingPropertySetter)->GetSlotData();
+		}
+		else
+		{
+			propertySetter = nullptr;
+		}
+
+		if (!propertySetter)
+		{
+			return JsErrorInvalidArgument;
+		}
+
+		utf8::NarrowToWide wname(name, length);
+		if (!wname)
+		{
+			return JsErrorOutOfMemory;
+		}
+		
+		Js::DynamicObject* dynamicObject = Js::DynamicObject::FromVar(object);		
+		propertySetter->SetProperty(dynamicObject, value, wname, (uint)length, true);
+		
+		return JsNoError;
+	});
+}
+
+void CHAKRA_CALLBACK finalizeCallback(_In_opt_ void *data)
+{
+	if (data)
+	{
+		Js::CachingPropertySetter *propertySetter = (Js::CachingPropertySetter *) data;
+		//propertySetter->Finalizer();
+		delete propertySetter;
+	}
+}
+
+CHAKRA_API JsCreateCachingPropertySetter(_Out_ JsValueRef *object)
+{
+	return ContextAPINoScriptWrapper([&](Js::ScriptContext *scriptContext, TTDRecorder& _actionEntryPopper) -> JsErrorCode {
+		PERFORM_JSRT_TTD_RECORD_ACTION_NOT_IMPLEMENTED(scriptContext);
+
+		Js::CachingPropertySetter *propertySetter = new Js::CachingPropertySetter(scriptContext);
+		*object = JsrtExternalObject::Create(propertySetter, finalizeCallback, scriptContext);
+
+		return JsNoError;
+	});
 }
 
 CHAKRA_API JsHasProperty(_In_ JsValueRef object, _In_ JsPropertyIdRef propertyId, _Out_ bool *hasProperty)

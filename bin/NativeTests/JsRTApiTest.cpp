@@ -1268,6 +1268,60 @@ namespace JsRTApiTest
         JsRTApiTest::RunWithAttributes(JsRTApiTest::SetPrototypeTest);
     }
 
+	void PropertyCacheTest(JsRuntimeAttributes attributes, JsRuntimeHandle runtime)
+	{
+		JsValueRef cache;
+		REQUIRE(JsCreateCachingPropertySetter(&cache) == JsNoError);
+
+		JsValueRef obj;
+		JsValueRef val;
+		REQUIRE(JsCreateObject(&obj) == JsNoError);
+		REQUIRE(JsIntToNumber(1, &val) == JsNoError);
+		REQUIRE(JsSetPropertyWithCache(obj, cache, "test", 4, val) == JsNoError);
+
+		JsPropertyIdRef propId;
+		JsPropertyIdRef propIdStr;
+		JsValueRef assertVal;
+		int assertInt;
+
+		REQUIRE(JsCreatePropertyId("test", 4, &propId) == JsNoError);
+		REQUIRE(JsCreatePropertyId("testStr", 7, &propIdStr) == JsNoError);
+		REQUIRE(JsGetProperty(obj, propId, &assertVal) == JsNoError);
+		REQUIRE(JsNumberToInt(assertVal, &assertInt) == JsNoError);
+
+		CHECK(assertInt == 1);
+
+		REQUIRE(JsIntToNumber(2, &val) == JsNoError);
+		REQUIRE(JsSetPropertyWithCache(obj, cache, "test", 4, val) == JsNoError);
+
+		REQUIRE(JsGetProperty(obj, propId, &assertVal) == JsNoError);
+		REQUIRE(JsNumberToInt(assertVal, &assertInt) == JsNoError);
+
+		CHECK(assertInt == 2);
+
+		//set strings
+		REQUIRE(JsCreateString("teststring", strlen("teststring"), &val) == JsNoError);
+		REQUIRE(JsSetPropertyWithCache(obj, cache, "testStr", 7, val) == JsNoError);
+
+		REQUIRE(JsGetProperty(obj, propIdStr, &assertVal) == JsNoError);
+		//REQUIRE(JsNumberToInt(assertVal, &assertInt) == JsNoError);
+		//
+		//CHECK(assertInt == 2);
+
+		REQUIRE(JsCreateString("teststring_1", strlen("teststring_1"), &val) == JsNoError);
+		REQUIRE(JsSetPropertyWithCache(obj, cache, "testStr", 7, val) == JsNoError);
+
+		REQUIRE(JsGetProperty(obj, propIdStr, &assertVal) == JsNoError);
+		//REQUIRE(JsNumberToInt(assertVal, &assertInt) == JsNoError);
+		//
+		//CHECK(assertInt == 2);
+	}
+
+	TEST_CASE("ApiTest_PropertyCacheTest", "[ApiTest]")
+	{
+		JsRTApiTest::RunWithAttributes(JsRTApiTest::PropertyCacheTest);
+	}
+
     void DisableEval(JsRuntimeAttributes attributes, JsRuntimeHandle runtime)
     {
         JsValueRef result = JS_INVALID_REFERENCE;

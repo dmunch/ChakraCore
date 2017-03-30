@@ -1592,6 +1592,9 @@ typedef unsigned short uint16_t;
             _In_ JsValueRef value,
             _In_ bool useStrictRules);
 
+    CHAKRA_API JsCreateCachingPropertySetter(_Out_ JsValueRef *object);
+    CHAKRA_API JsSetPropertyWithCache(_In_ JsValueRef object, _In_ JsValueRef cachingPropertySetter, const char *name, _In_ size_t length, _In_ JsValueRef value);
+
     /// <summary>
     ///     Determines whether an object has a property.
     /// </summary>

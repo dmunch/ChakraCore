@@ -39,6 +39,8 @@
     JsGetProperty
     JsGetOwnPropertyDescriptor
     JsSetProperty
+    JsCreateCachingPropertySetter
+    JsSetPropertyWithCache
     JsHasProperty
     JsDeleteProperty
     JsDefineProperty
